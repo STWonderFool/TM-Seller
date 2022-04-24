@@ -114,6 +114,7 @@ class TmFighter:
             self.login = settings[self.account_name]['login']
             self.password = settings[self.account_name]['password']
             self.tm_api = settings[self.account_name]['tm_api']
+            self.mafile_name = settings[self.account_name]['maFile']
 
             # Fighter settings
             self.tm_coefficient = settings['tm_min_threshold']
@@ -136,7 +137,7 @@ class TmFighter:
 
     def run(self):
         # Start sending items
-        Thread(target=ItemsSender, args=(self.account_name, self.password, self.tm_api)).start()
+        Thread(target=ItemsSender, args=(self.account_name, self.password, self.tm_api, self.mafile_name)).start()
 
         last_getting_thresholds_time = 0
         list_items_time = 0
@@ -376,8 +377,8 @@ class TmFighter:
 
 
 class ItemsSender:
-    def __init__(self, account_name, password, tm_api):
-        with open(f'mafiles/{account_name}.maFile') as second_file:
+    def __init__(self, account_name, password, tm_api, mafile_name):
+        with open(f'mafiles/{mafile_name}') as second_file:
             mafile = load(second_file)
             self.account_name = account_name
             self.password = password
