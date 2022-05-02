@@ -137,7 +137,7 @@ class TmFighter:
 
     def run(self):
         # Start sending items
-        Thread(target=ItemsSender, args=(self.account_name, self.password, self.tm_api, self.mafile_name)).start()
+        Thread(target=ItemsSender, args=(self.account_name, self.login, self.password, self.tm_api, self.mafile_name)).start()
 
         last_getting_thresholds_time = 0
         list_items_time = 0
@@ -377,10 +377,11 @@ class TmFighter:
 
 
 class ItemsSender:
-    def __init__(self, account_name, password, tm_api, mafile_name):
+    def __init__(self, account_name, login, password, tm_api, mafile_name):
         with open(f'mafiles/{mafile_name}') as second_file:
             mafile = load(second_file)
             self.account_name = account_name
+            self.login = login
             self.password = password
             self.tm_api = tm_api
             self.shared_secret = mafile['shared_secret']
@@ -414,7 +415,11 @@ class ItemsSender:
                 continue
 
             offers = self.filter_offers_list(offers)
-            self.create_offers(offers)
+            try:
+                self.create_offers(offers)
+            except:
+                telegram_notify(f'Unexpected error while sending error on {self.account_name}')
+                message(self.account_name, 'r', 'Unexpected error while sending error!')
             message(self.account_name, 'y>', 'Sent all offers!')
             sleep(30)
 
@@ -477,7 +482,7 @@ class ItemsSender:
         telegram_notify(f'Logining to {self.account_name}..')
         message(self.account_name, 'y>', 'Logining to account..')
         try:
-            LoginExecutor(self.account_name, self.password, self.shared_secret, self.session).login()
+            LoginExecutor(self.login, self.password, self.shared_secret, self.session).login()
 
         except InvalidCredentials:
             message(self.account_name, 'r', 'Incorrect login/password')
