@@ -136,12 +136,18 @@ class TmFighter:
         self.run()
 
     def run(self):
+        global stop_flag
+
         # Start sending items
         Thread(target=ItemsSender, args=(self.account_name, self.login, self.password, self.tm_api, self.mafile_name)).start()
 
         last_getting_thresholds_time = 0
         list_items_time = 0
         while True:
+            if stop_flag:
+                message(self.account_name, 'y', 'Exit from Fighter')
+                return
+
             # List items every ..
             if time() - list_items_time > self.list_items_every * 3600:
                 self.list_all_items()
@@ -149,9 +155,6 @@ class TmFighter:
 
             # Check my items on sale
             if not self.get_my_items_on_sell():
-                global stop_flag
-                if stop_flag:
-                    return
                 continue
 
             # Getting min thresholds
@@ -419,7 +422,7 @@ class ItemsSender:
                 self.create_offers(offers)
             except:
                 telegram_notify(f'Unexpected error while sending error on {self.account_name}')
-                message(self.account_name, 'r', 'Unexpected error while sending error!')
+                message(self.account_name, 'r', 'Unexpected error while sending offer!')
             message(self.account_name, 'y>', 'Sent all offers!')
             sleep(30)
 
