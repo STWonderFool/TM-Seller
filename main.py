@@ -190,7 +190,7 @@ class TmFighter:
             message(self.account_name, 'r', f'Errors getting min thresholds: {len(self.error_getting_thresholds)}'
                                             f' (Iter {i + 1})')
             if len(self.error_getting_thresholds) < 2:
-                return
+                break
             temp_errors = self.error_getting_thresholds
             self.error_getting_thresholds = []
             self.get_min_thresholds_from_list(temp_errors)
