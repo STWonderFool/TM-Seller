@@ -144,24 +144,29 @@ class TmFighter:
         last_getting_thresholds_time = 0
         list_items_time = 0
         while True:
+            printy('[y]Enter in cycle')
             if stop_flag:
                 message(self.account_name, 'y', 'Exit from Fighter')
                 return
-
+            
+            printy('[y]List items every..')
             # List items every ..
             if time() - list_items_time > self.list_items_every * 3600:
                 self.list_all_items()
                 list_items_time = time()
 
+            printy('[y]Check my items on sale')
             # Check my items on sale
             if not self.get_my_items_on_sell():
                 continue
 
+            printy('[y]Getting min thresholds')
             # Getting min thresholds
             if time() - last_getting_thresholds_time > self.get_thresholds_every * 3600:
                 self.get_min_thresholds_on_sell_items()
                 last_getting_thresholds_time = time()
 
+            printy('[y]Fight prices!')
             # Fight prices!
             changing_prices_time = time()
             self.change_item_prices()
@@ -370,7 +375,7 @@ class TmFighter:
             try:
                 get(url)
             except:
-                return
+                continue
 
         if not prices:
             return message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / 100},'
