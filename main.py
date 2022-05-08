@@ -144,29 +144,24 @@ class TmFighter:
         last_getting_thresholds_time = 0
         list_items_time = 0
         while True:
-            printy('[y]Enter in cycle')
             if stop_flag:
                 message(self.account_name, 'y', 'Exit from Fighter')
                 return
-            
-            printy('[y]List items every..')
+
             # List items every ..
             if time() - list_items_time > self.list_items_every * 3600:
                 self.list_all_items()
                 list_items_time = time()
 
-            printy('[y]Check my items on sale')
             # Check my items on sale
             if not self.get_my_items_on_sell():
                 continue
 
-            printy('[y]Getting min thresholds')
             # Getting min thresholds
             if time() - last_getting_thresholds_time > self.get_thresholds_every * 3600:
                 self.get_min_thresholds_on_sell_items()
                 last_getting_thresholds_time = time()
 
-            printy('[y]Fight prices!')
             # Fight prices!
             changing_prices_time = time()
             self.change_item_prices()
@@ -340,7 +335,7 @@ class TmFighter:
         get_prices_url = f'https://market.csgo.com/api/v2/search-item-by-hash-name-specific?key={self.tm_api}' \
                          f'&hash_name=' + item_name
         try:
-            data = get(get_prices_url).json()['data']
+            data = get(get_prices_url, timeout=60).json()['data']
         except:
             message(self.account_name, 'r', f'Error getting prices on TM - {item_name}')
             return
@@ -373,7 +368,7 @@ class TmFighter:
             url = f'https://market.csgo.com/api/v2/set-price?key={self.tm_api}&item_id={item_id}' \
                   f'&price={new_price}&cur=RUB'
             try:
-                get(url)
+                get(url, timeout=60)
             except:
                 continue
 
