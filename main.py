@@ -15,6 +15,7 @@ from requests.utils import dict_from_cookiejar
 from steampy.exceptions import CaptchaRequired, InvalidCredentials
 from printy import printy
 from traceback import format_exc
+from os import environ
 
 
 stop_flag = False
@@ -139,7 +140,8 @@ class TmFighter:
         global stop_flag
 
         # Start sending items
-        Thread(target=ItemsSender, args=(self.account_name, self.login, self.password, self.tm_api, self.mafile_name)).start()
+        Thread(target=ItemsSender, args=(self.account_name, self.login, self.password, self.tm_api,
+                                         self.mafile_name)).start()
 
         last_getting_thresholds_time = 0
         list_items_time = 0
@@ -406,25 +408,25 @@ class ItemsSender:
         Thread(target=ping_pong, args=(self.account_name, self.tm_api)).start()
 
         while True:
-            if stop_flag:
-                message(self.account_name, 'y', 'Exit from sender')
-                return
-
-            message(self.account_name, 'y>', 'Checking for new trades..')
-            offers = check_active_offers(self.tm_api)
-            if not offers:
-                message(self.account_name, 'y>', 'No active offers')
-                sleep(30)
-                continue
-
-            offers = self.filter_offers_list(offers)
             try:
-                self.create_offers(offers)
+                while True:
+                    if stop_flag:
+                        message(self.account_name, 'y', 'Exit from sender')
+                        return
+
+                    message(self.account_name, 'y>', 'Checking for new trades..')
+                    offers = check_active_offers(self.tm_api)
+                    if not offers:
+                        message(self.account_name, 'y>', 'No active offers')
+                        sleep(30)
+                        continue
+
+                    offers = self.filter_offers_list(offers)
+                    self.create_offers(offers)
+                    message(self.account_name, 'y>', 'Sent all offers!')
+                    sleep(30)
             except:
-                telegram_notify(f'Unexpected error while sending error on {self.account_name}')
-                message(self.account_name, 'r', 'Unexpected error while sending offer!')
-            message(self.account_name, 'y>', 'Sent all offers!')
-            sleep(30)
+                telegram_notify(f'Critical error in Sender module: {format_exc()}')
 
     def filter_offers_list(self, offers):
         for offer in offers.copy():
@@ -459,7 +461,11 @@ class ItemsSender:
         counter = 0
         for offer in offers:
             counter += 1
-            response = self.create_single_offer(offer)
+            try:
+                response = self.create_single_offer(offer)
+            except:
+                message(self.account_name, 'r', 'Steam is not responding..')
+                continue
 
             # If session expired
             if not response.json():
@@ -470,6 +476,10 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
+
+                # Cancel trade offer after 10 minutes Thread
+                Thread(target=self.cancel_trade_offer, args=(trade_id, 600)).start()
+
                 if self.confirm_trade_offer(trade_id):
                     message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} created!')
                     self.sent_offers_messages.append(offer['tradeoffermessage'])
@@ -510,8 +520,27 @@ class ItemsSender:
             message(self.account_name, 'n', 'Success login')
             return True
 
+    def cancel_trade_offer(self, trade_id, sleep_time):
+        sleep(sleep_time)
+        url = 'https://steamcommunity.com/tradeoffer/' + trade_id + '/cancel'
+        try:
+            response = self.session.post(url, data={'sessionid': self.cookies['sessionid']})
+            if response.status_code == 200:
+                return
+            if response.json()['success'] == 11:
+                return
+        except:
+            pass
+        self.cancel_trade_offer(trade_id, 60)
+
 
 printy('[m]Created by@ [w]vk.com/YunosRage\n')
+with open('Accounts & Settings.json') as file:
+    settings = load(file)
+    proxy = settings['proxy']
+    if proxy:
+        environ['https_proxy'] = proxy
+        message('', 'y', f'Working with {proxy} proxy\n')
 
 try:
     TmFighter()
