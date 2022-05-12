@@ -16,6 +16,7 @@ from steampy.exceptions import CaptchaRequired, InvalidCredentials
 from printy import printy
 from traceback import format_exc
 from os import environ
+from bs4 import BeautifulSoup
 
 
 stop_flag = False
@@ -396,16 +397,50 @@ class ItemsSender:
         self.session = Session()
         while True:
             if self.login_to_account():
+                self.steam_api = self.get_my_steam_api()
                 break
 
         self.sent_offers_messages = []
 
         self.run()
 
+    def get_my_steam_api(self):
+        global stop_flag
+
+        url = 'https://steamcommunity.com/dev/apikey'
+        try:
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.content, 'html.parser')
+            steam_api = soup.find('div', id='bodyContents_ex').p.text.split()[1]
+            return steam_api
+        except:
+            message(self.account_name, 'r', f'Error getting your steam api: {format_exc()}')
+            stop_flag = True
+
+    def cancel_all_offers_older_10_min(self):
+        while True:
+            sleep(90)
+            url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
+
+            try:
+                trade_offers = get(url).json()['response']['trade_offers_sent']
+                for i in trade_offers:
+                    if time() - i['time_created'] > 600:
+                        try:
+                            self.cancel_trade_offer(i['tradeofferid'])
+                        except:
+                            message(self.account_name, 'r', 'Trade offer cancellation error')
+            except:
+                pass
+
     def run(self):
         global stop_flag
 
-        Thread(target=ping_pong, args=(self.account_name, self.tm_api)).start()
+        try:
+            Thread(target=self.cancel_all_offers_older_10_min).start()
+            Thread(target=ping_pong, args=(self.account_name, self.tm_api)).start()
+        except:
+            telegram_notify(f'Critical error: {format_exc()}')
 
         while True:
             try:
@@ -476,10 +511,6 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
-
-                # Cancel trade offer after 10 minutes Thread
-                Thread(target=self.cancel_trade_offer, args=(trade_id, 600)).start()
-
                 if self.confirm_trade_offer(trade_id):
                     message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} created!')
                     self.sent_offers_messages.append(offer['tradeoffermessage'])
@@ -520,18 +551,9 @@ class ItemsSender:
             message(self.account_name, 'n', 'Success login')
             return True
 
-    def cancel_trade_offer(self, trade_id, sleep_time):
-        sleep(sleep_time)
+    def cancel_trade_offer(self, trade_id):
         url = 'https://steamcommunity.com/tradeoffer/' + trade_id + '/cancel'
-        try:
-            response = self.session.post(url, data={'sessionid': self.cookies['sessionid']})
-            if response.status_code == 200:
-                return
-            if response.json()['success'] == 11:
-                return
-        except:
-            pass
-        self.cancel_trade_offer(trade_id, 60)
+        return self.session.post(url, data={'sessionid': self.cookies['sessionid']})
 
 
 printy('[m]Created by@ [w]vk.com/YunosRage\n')
