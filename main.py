@@ -77,7 +77,8 @@ def check_active_offers(tm_api):
         if response.status_code == 200:
             return response.json()['offers']
         else:
-            return update_inventory(tm_api), check_active_offers(tm_api)
+            update_inventory(tm_api)
+            return check_active_offers(tm_api)
     except:
         return False
 
@@ -460,10 +461,10 @@ class ItemsSender:
 
     def cancel_all_offers_older_10_min(self):
         global stop_flag
-        
+
         while True:
             if stop_flag:
-                return 
+                return
             sleep(90)
             url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
 
