@@ -73,8 +73,11 @@ def ping_pong(account_name, tm_api):
 def check_active_offers(tm_api):
     check_offers_url = 'https://market.csgo.com/api/v2/trade-request-give-p2p-all?key=' + tm_api
     try:
-        offers = get(check_offers_url).json()['offers']
-        return offers
+        response = get(check_offers_url)
+        if response.status_code == 200:
+            return response.json()['offers']
+        else:
+            return update_inventory(tm_api), check_active_offers(tm_api)
     except:
         return False
 
@@ -404,35 +407,6 @@ class ItemsSender:
 
         self.run()
 
-    def get_my_steam_api(self):
-        global stop_flag
-
-        url = 'https://steamcommunity.com/dev/apikey'
-        try:
-            response = self.session.get(url)
-            soup = BeautifulSoup(response.content, 'html.parser')
-            steam_api = soup.find('div', id='bodyContents_ex').p.text.split()[1]
-            return steam_api
-        except:
-            message(self.account_name, 'r', f'Error getting your steam api: {format_exc()}')
-            stop_flag = True
-
-    def cancel_all_offers_older_10_min(self):
-        while True:
-            sleep(90)
-            url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
-
-            try:
-                trade_offers = get(url).json()['response']['trade_offers_sent']
-                for i in trade_offers:
-                    if time() - i['time_created'] > 600:
-                        try:
-                            self.cancel_trade_offer(i['tradeofferid'])
-                        except:
-                            message(self.account_name, 'r', 'Trade offer cancellation error')
-            except:
-                pass
-
     def run(self):
         global stop_flag
 
@@ -462,6 +436,47 @@ class ItemsSender:
                     sleep(30)
             except:
                 telegram_notify(f'Critical error in Sender module: {format_exc()}')
+
+    def is_session_alive(self):
+        main_page_response = self.session.get('https://steamcommunity.com/')
+        try:
+            response = self.login.lower() in main_page_response.text.lower()
+        except:
+            return False
+        return response
+
+    def get_my_steam_api(self):
+        global stop_flag
+
+        url = 'https://steamcommunity.com/dev/apikey'
+        try:
+            response = self.session.get(url)
+            soup = BeautifulSoup(response.content, 'html.parser')
+            steam_api = soup.find('div', id='bodyContents_ex').p.text.split()[1]
+            return steam_api
+        except:
+            message(self.account_name, 'r', f'Error getting your steam api')
+            stop_flag = True
+
+    def cancel_all_offers_older_10_min(self):
+        global stop_flag
+        
+        while True:
+            if stop_flag:
+                return 
+            sleep(90)
+            url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
+
+            try:
+                trade_offers = get(url).json()['response']['trade_offers_sent']
+                for i in trade_offers:
+                    if time() - i['time_created'] > 600:
+                        try:
+                            self.cancel_trade_offer(i['tradeofferid'])
+                        except:
+                            message(self.account_name, 'r', 'Trade offer cancellation error')
+            except:
+                pass
 
     def filter_offers_list(self, offers):
         for offer in offers.copy():
@@ -504,9 +519,11 @@ class ItemsSender:
 
             # If session expired
             if not response.json():
-                message(self.account_name, 'r', 'Seems like session is expired, need relogin..')
-                self.login_to_account()
-                return
+                if not self.is_session_alive():
+                    message(self.account_name, 'r', 'Seems like session is expired, need relogin..')
+                    self.login_to_account()
+                    return
+                continue
 
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
@@ -523,12 +540,12 @@ class ItemsSender:
     def login_to_account(self):
         global stop_flag
 
-        telegram_notify(f'Logining to {self.account_name}..')
         message(self.account_name, 'y>', 'Logining to account..')
         try:
             LoginExecutor(self.login, self.password, self.shared_secret, self.session).login()
 
         except InvalidCredentials:
+            telegram_notify(f'Incorrect login/password in {self.account_name}')
             message(self.account_name, 'r', 'Incorrect login/password')
             stop_flag = True
             return True
@@ -542,13 +559,14 @@ class ItemsSender:
         except:
             telegram_notify(f'Unexpected error in login to {self.account_name}')
             message(self.account_name, 'r', 'Unexpected error in login')
-            sleep(60)
+            sleep(30)
             return False
 
         else:
+            message(self.account_name, 'n', 'Success login')
+            telegram_notify(f'Success login to {self.account_name}')
             self.cookies = dict_from_cookiejar(self.session.cookies)
             self.confirmation_executor = ConfirmationExecutor(self.identity_secret, self.steam_id, self.session)
-            message(self.account_name, 'n', 'Success login')
             return True
 
     def cancel_trade_offer(self, trade_id):
