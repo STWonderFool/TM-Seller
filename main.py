@@ -437,7 +437,7 @@ class ItemsSender:
                     sleep(30)
             except:
                 telegram_notify(f'Critical error in Sender module')
-                printy(format_exc())
+                print(format_exc())
 
     def is_session_alive(self):
         main_page_response = self.session.get('https://steamcommunity.com/')
