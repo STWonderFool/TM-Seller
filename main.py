@@ -436,7 +436,8 @@ class ItemsSender:
                     message(self.account_name, 'y>', 'Sent all offers!')
                     sleep(30)
             except:
-                telegram_notify(f'Critical error in Sender module: {format_exc()}')
+                telegram_notify(f'Critical error in Sender module')
+                printy(format_exc())
 
     def is_session_alive(self):
         main_page_response = self.session.get('https://steamcommunity.com/')
