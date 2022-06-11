@@ -1,30 +1,32 @@
-from json import load, dump
-from requests import get, Session
-from notifiers import get_notifier
-from string import capwords
-from time import sleep, time
-from threading import Thread
-from statistics import median
 from datetime import datetime
-from re import findall
-from steampy.login import LoginExecutor
-from steampy.confirmation import ConfirmationExecutor
-from struct import unpack
 from json import dumps
-from requests.utils import dict_from_cookiejar
-from steampy.exceptions import CaptchaRequired, InvalidCredentials
-from printy import printy
-from traceback import format_exc
+from json import load, dump
 from os import environ
-from bs4 import BeautifulSoup
+from re import findall
+from statistics import median
+from string import capwords
+from struct import unpack
+from threading import Thread
+from time import sleep, time
+from traceback import format_exc
 
+from bs4 import BeautifulSoup
+from notifiers import get_notifier
+from printy import printy
+from requests import get, Session
+from requests.utils import dict_from_cookiejar
+from steampy.confirmation import ConfirmationExecutor
+from steampy.exceptions import CaptchaRequired, InvalidCredentials
+from steampy.login import LoginExecutor
 
 stop_flag = False
+
 
 def account_id_to_steam_id(account_id):
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
     return str(unpack('>Q', last_bytes + first_bytes)[0])
+
 
 def telegram_notify(text):
     with open('Accounts & Settings.json') as file:
@@ -35,8 +37,10 @@ def telegram_notify(text):
         telegram = get_notifier('telegram')
         telegram.notify(chat_id=chat_id, token=token, message=text)
 
+
 def message(account_name, color, text):
     printy(f'[m][{datetime.now().strftime("%H:%M")} {account_name}]@ [{color}]{text}')
+
 
 def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
@@ -48,6 +52,7 @@ def update_inventory(tm_api):
         except:
             continue
     return False
+
 
 def ping_pong(account_name, tm_api):
     global stop_flag
@@ -68,7 +73,8 @@ def ping_pong(account_name, tm_api):
                 message(account_name, 'w', f'Ping pong - {response}')
                 break
             message(account_name, 'r', f'Ping pong - {response}')
-        sleep(120)
+        sleep(80)
+
 
 def check_active_offers(tm_api):
     check_offers_url = 'https://market.csgo.com/api/v2/trade-request-give-p2p-all?key=' + tm_api
@@ -82,6 +88,7 @@ def check_active_offers(tm_api):
     except:
         return False
 
+
 def get_my_items_to_list(tm_api):
     update_inventory(tm_api)
     url = 'https://market.csgo.com/api/v2/my-inventory/?key=' + tm_api
@@ -92,6 +99,7 @@ def get_my_items_to_list(tm_api):
         except:
             continue
     return False
+
 
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
@@ -213,7 +221,7 @@ class TmFighter:
         counter = 0
 
         for item_name in my_list:
-            thread = Thread(target=self.get_min_threshold, args=(item_name, ))
+            thread = Thread(target=self.get_min_threshold, args=(item_name,))
             self.threads.append(thread)
             counter += 1
 
