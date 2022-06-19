@@ -250,8 +250,12 @@ class TmFighter:
             prices.append(i[1])
 
         if not prices:
-            for i in range(10):
-                prices.append(history[i][1])
+            if len(history) > 10:
+                for i in range(10):
+                    prices.append(history[i][1])
+            else:
+                for i in range(len(history)):
+                    prices.append(history[i][1])
 
         average_tm = round(median(prices), 2)
         steam_buy_order = self.get_steam_buy_order(item_name)
@@ -555,10 +559,10 @@ class ItemsSender:
             LoginExecutor(self.login, self.password, self.shared_secret, self.session).login()
 
         except InvalidCredentials:
-            telegram_notify(f'Incorrect login/password in {self.account_name}')
-            message(self.account_name, 'r', 'Incorrect login/password')
-            stop_flag = True
-            return True
+            telegram_notify(f'Incorrect login/password in {self.account_name} or steam lags')
+            message(self.account_name, 'r', 'Incorrect login/password or steam lags, sleeping for next 60 seconds..')
+            sleep(60)
+            return False
 
         except CaptchaRequired:
             telegram_notify(f'Captcha required on {self.account_name}')
