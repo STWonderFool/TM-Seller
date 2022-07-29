@@ -21,12 +21,10 @@ from steampy.login import LoginExecutor
 
 stop_flag = False
 
-
 def account_id_to_steam_id(account_id):
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
     return str(unpack('>Q', last_bytes + first_bytes)[0])
-
 
 def telegram_notify(text):
     with open('Accounts & Settings.json') as file:
@@ -37,10 +35,8 @@ def telegram_notify(text):
         telegram = get_notifier('telegram')
         telegram.notify(chat_id=chat_id, token=token, message=text)
 
-
 def message(account_name, color, text):
     printy(f'[m][{datetime.now().strftime("%H:%M")} {account_name}]@ [{color}]{text}')
-
 
 def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
@@ -52,7 +48,6 @@ def update_inventory(tm_api):
         except:
             continue
     return False
-
 
 def ping_pong(account_name, tm_api):
     global stop_flag
@@ -75,19 +70,17 @@ def ping_pong(account_name, tm_api):
             message(account_name, 'r', f'Ping pong - {response}')
         sleep(80)
 
-
 def check_active_offers(tm_api):
     check_offers_url = 'https://market.csgo.com/api/v2/trade-request-give-p2p-all?key=' + tm_api
     try:
         response = get(check_offers_url)
-        if response.status_code == 200:
+        if response.json()['success']:
             return response.json()['offers']
         else:
             update_inventory(tm_api)
             return check_active_offers(tm_api)
     except:
         return False
-
 
 def get_my_items_to_list(tm_api):
     update_inventory(tm_api)
@@ -99,7 +92,6 @@ def get_my_items_to_list(tm_api):
         except:
             continue
     return False
-
 
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
@@ -116,26 +108,33 @@ def get_single_item_id(item_name, account_name):
 class TmFighter:
     def __init__(self):
         self.account_name = input('Account name: ')
-        with open('Accounts & Settings.json') as file:
-            settings = load(file)
-            while True:
-                if self.account_name not in settings:
-                    self.account_name = input('Incorrect account name, try again: ')
-                else:
-                    break
+        while True:
+            if self.account_name not in settings:
+                self.account_name = input('Incorrect account name, try again: ')
+            else:
+                break
 
-            # Login data
-            self.login = settings[self.account_name]['login']
-            self.password = settings[self.account_name]['password']
-            self.tm_api = settings[self.account_name]['tm_api']
-            self.mafile_name = settings[self.account_name]['maFile']
+        # Login data
+        self.login = settings[self.account_name]['login']
+        self.password = settings[self.account_name]['password']
+        self.tm_api = settings[self.account_name]['tm_api']
+        self.mafile_name = settings[self.account_name]['maFile']
 
-            # Fighter settings
-            self.tm_coefficient = settings['tm_min_threshold']
-            self.steam_coefficient = settings['steam_min_threshold']
-            self.price_per_days = settings['price_per_days']
-            self.get_thresholds_every = settings['get_thresholds_every']
-            self.list_items_every = settings['list_items_every']
+        # Fighter settings
+        self.tm_coefficient = settings['tm_min_threshold']
+        self.steam_coefficient = settings['steam_min_threshold']
+
+        currency_codes = {"RUB": "5", "USD": "1", "EUR": "3"}
+        self.currency_name = settings['currency']
+        self.currency_code = currency_codes[self.currency_name]
+        if self.currency_name == 'RUB':
+            self.currency_coefficient = 100
+        else:
+            self.currency_coefficient = 1000
+
+        self.price_per_days = settings['price_per_days']
+        self.get_thresholds_every = settings['get_thresholds_every']
+        self.list_items_every = settings['list_items_every']
 
         self.my_items_on_sale_dict = {}
         self.min_thresholds = {}
@@ -191,7 +190,8 @@ class TmFighter:
         message(self.account_name, 'n>', 'Updated inventory, starting list items..')
         for i in items:
             item_id = i['id']
-            url = f'https://market.csgo.com/api/v2/add-to-sale?key={self.tm_api}&id={item_id}&price=100000000&cur=RUB'
+            url = f'https://market.csgo.com/api/v2/add-to-sale?key={self.tm_api}&id={item_id}&price=1000000000&' \
+                  f'cur={self.currency_name}'
             try:
                 get(url)
             except:
@@ -279,8 +279,8 @@ class TmFighter:
                 return None
             self.cs_items_id[item_name] = item_id
 
-        url = 'https://steamcommunity.com/market/itemordershistogram?country=RU&language=english&currency=5&' \
-              'item_nameid=' + item_id
+        url = f'https://steamcommunity.com/market/itemordershistogram?country=RU&language=english&currency=' \
+              f'{self.currency_code}&item_nameid=' + item_id
         try:
             response = get(url)
             if response.status_code != 200:
@@ -336,7 +336,7 @@ class TmFighter:
         for item_name in self.my_items_on_sale_dict:
             if item_name in self.min_thresholds:
                 my_price, item_ids = self.my_items_on_sale_dict[item_name]
-                self.change_item_price(item_name, my_price * 100, item_ids)
+                self.change_item_price(item_name, my_price * self.currency_coefficient, item_ids)
             else:
                 self.get_min_threshold(item_name)
 
@@ -346,9 +346,9 @@ class TmFighter:
         try:
             response = get(url)
             max_price = response.json()['data'][item_name]['max']
-            return max_price * 100
+            return max_price * self.currency_coefficient
         except:
-            return 100000000
+            return 1000000000
 
     def change_item_price(self, item_name, my_price, item_ids):
         get_prices_url = f'https://market.csgo.com/api/v2/search-item-by-hash-name-specific?key={self.tm_api}' \
@@ -365,9 +365,9 @@ class TmFighter:
                 continue
             prices.append(i['price'])
 
-        min_threshold = self.min_thresholds[item_name] * 100
+        min_threshold = self.min_thresholds[item_name] * self.currency_coefficient
 
-        new_price = 100000000
+        new_price = 1000000000
         for price in prices:
             if price - 1 > min_threshold:
                 new_price = price - 1
@@ -379,23 +379,23 @@ class TmFighter:
         if new_price == my_price:
             if not prices:
                 return message(self.account_name, 'g', f'Skip, no competitors {item_name}')
-            return message(self.account_name, 'g', f'Skip {item_name}, Min price: {prices[0] / 100}, '
-                                                   f'My price: {my_price / 100}, '
-                                                   f'Min Threshold: {round(min_threshold / 100, 2)}')
+            return message(self.account_name, 'g', f'Skip {item_name}, Min price: {prices[0] / self.currency_coefficient}, '
+                                                   f'My price: {my_price / self.currency_coefficient}, '
+                                                   f'Min Threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
         for item_id in item_ids:
             url = f'https://market.csgo.com/api/v2/set-price?key={self.tm_api}&item_id={item_id}' \
-                  f'&price={new_price}&cur=RUB'
+                  f'&price={new_price}&cur={self.currency_name}'
             try:
                 get(url, timeout=60)
             except:
                 continue
 
         if not prices:
-            return message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / 100},'
-                                                    f' No competitors. Min threshold: {round(min_threshold / 100, 2)}')
-        message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / 100},'
-                                         f' First price: {prices[0] / 100}, Min threshold: {round(min_threshold / 100, 2)}')
+            return message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
+                                                    f' No competitors. Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
+        message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
+                                         f' First price: {prices[0] / self.currency_coefficient}, Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
 
 class ItemsSender:
@@ -444,7 +444,11 @@ class ItemsSender:
                         continue
 
                     offers = self.filter_offers_list(offers)
-                    self.create_offers(offers)
+                    try:
+                        self.create_offers(offers)
+                    except:
+                        message(self.account_name, 'r', 'Some error in creating offers')
+
                     message(self.account_name, 'y>', 'Sent all offers!')
                     sleep(30)
             except:
@@ -514,12 +518,13 @@ class ItemsSender:
         return self.session.post(create_offer_link, data=data, headers=headers)
 
     def confirm_trade_offer(self, trade_id):
-        try:
-            self.confirmation_executor.send_trade_allow_request(trade_id)
-            return True
-        except:
-            message(self.account_name, 'r', 'Error in confirmation offer')
-            return False
+        for i in range(5):
+            try:
+                self.confirmation_executor.send_trade_allow_request(trade_id)
+                return
+            except:
+                sleep(60)
+        message(self.account_name, 'r', f'Offer {trade_id} is not confirmed')
 
     def create_offers(self, offers):
         counter = 0
@@ -542,9 +547,9 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
-                if self.confirm_trade_offer(trade_id):
-                    message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} created!')
-                    self.sent_offers_messages.append(offer['tradeoffermessage'])
+                Thread(target=self.confirm_trade_offer, args=(trade_id, )).start()
+                message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
+                self.sent_offers_messages.append(offer['tradeoffermessage'])
                 continue
 
             # If error in sending offer
