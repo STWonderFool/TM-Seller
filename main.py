@@ -21,10 +21,12 @@ from steampy.login import LoginExecutor
 
 stop_flag = False
 
+
 def account_id_to_steam_id(account_id):
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
     return str(unpack('>Q', last_bytes + first_bytes)[0])
+
 
 def telegram_notify(text):
     with open('Accounts & Settings.json') as file:
@@ -35,8 +37,10 @@ def telegram_notify(text):
         telegram = get_notifier('telegram')
         telegram.notify(chat_id=chat_id, token=token, message=text)
 
+
 def message(account_name, color, text):
     printy(f'[m][{datetime.now().strftime("%H:%M")} {account_name}]@ [{color}]{text}')
+
 
 def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
@@ -48,6 +52,7 @@ def update_inventory(tm_api):
         except:
             continue
     return False
+
 
 def ping_pong(account_name, tm_api):
     global stop_flag
@@ -70,7 +75,12 @@ def ping_pong(account_name, tm_api):
             message(account_name, 'r', f'Ping pong - {response}')
         sleep(80)
 
-def check_active_offers(tm_api):
+
+def check_active_offers(tm_api, counter=0):
+    counter += 1
+    if counter == 3:
+        return False
+
     check_offers_url = 'https://market.csgo.com/api/v2/trade-request-give-p2p-all?key=' + tm_api
     try:
         response = get(check_offers_url)
@@ -78,9 +88,10 @@ def check_active_offers(tm_api):
             return response.json()['offers']
         else:
             update_inventory(tm_api)
-            return check_active_offers(tm_api)
+            return check_active_offers(tm_api, counter)
     except:
         return False
+
 
 def get_my_items_to_list(tm_api):
     update_inventory(tm_api)
@@ -92,6 +103,7 @@ def get_my_items_to_list(tm_api):
         except:
             continue
     return False
+
 
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
@@ -201,6 +213,7 @@ class TmFighter:
         message(self.account_name, 'n', 'Listed All items!')
 
     def get_min_thresholds_on_sell_items(self):
+        self.min_thresholds = {}
         message(self.account_name, 'm', 'Getting min thresholds..')
         self.get_min_thresholds_from_list(self.my_items_on_sale_dict)
 
@@ -261,6 +274,7 @@ class TmFighter:
         steam_buy_order = self.get_steam_buy_order(item_name)
         if not steam_buy_order:
             return self.error_getting_thresholds.append(item_name)
+
         message(self.account_name, 'm', f'{item_name} - TM: {average_tm}, Steam S/O: {steam_buy_order}')
 
         tm_threshold = average_tm * self.tm_coefficient
@@ -379,9 +393,10 @@ class TmFighter:
         if new_price == my_price:
             if not prices:
                 return message(self.account_name, 'g', f'Skip, no competitors {item_name}')
-            return message(self.account_name, 'g', f'Skip {item_name}, Min price: {prices[0] / self.currency_coefficient}, '
-                                                   f'My price: {my_price / self.currency_coefficient}, '
-                                                   f'Min Threshold: {round(min_threshold / self.currency_coefficient, 2)}')
+            return message(self.account_name, 'g',
+                           f'Skip {item_name}, Min price: {prices[0] / self.currency_coefficient}, '
+                           f'My price: {my_price / self.currency_coefficient}, '
+                           f'Min Threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
         for item_id in item_ids:
             url = f'https://market.csgo.com/api/v2/set-price?key={self.tm_api}&item_id={item_id}' \
@@ -392,8 +407,9 @@ class TmFighter:
                 continue
 
         if not prices:
-            return message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
-                                                    f' No competitors. Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
+            return message(self.account_name, 'b>',
+                           f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
+                           f' No competitors. Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
         message(self.account_name, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
                                          f' First price: {prices[0] / self.currency_coefficient}, Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
@@ -452,7 +468,7 @@ class ItemsSender:
                     message(self.account_name, 'y>', 'Sent all offers!')
                     sleep(30)
             except:
-                telegram_notify(f'Critical error in Sender module')
+                telegram_notify(f'Critical error in Sender module {self.account_name}')
                 print(format_exc())
 
     def is_session_alive(self):
@@ -518,13 +534,11 @@ class ItemsSender:
         return self.session.post(create_offer_link, data=data, headers=headers)
 
     def confirm_trade_offer(self, trade_id):
-        for i in range(5):
+        for i in range(3):
             try:
                 self.confirmation_executor.send_trade_allow_request(trade_id)
-                return
             except:
                 sleep(60)
-        message(self.account_name, 'r', f'Offer {trade_id} is not confirmed')
 
     def create_offers(self, offers):
         counter = 0
@@ -547,7 +561,7 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
-                Thread(target=self.confirm_trade_offer, args=(trade_id, )).start()
+                Thread(target=self.confirm_trade_offer, args=(trade_id,)).start()
                 message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
                 self.sent_offers_messages.append(offer['tradeoffermessage'])
                 continue
