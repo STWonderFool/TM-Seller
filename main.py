@@ -46,7 +46,7 @@ def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
     for i in range(3):
         try:
-            response = get(url)
+            response = get(url, timeout=60)
             if response.json()['success']:
                 return True
         except:
@@ -66,7 +66,7 @@ def ping_pong(account_name, tm_api):
 
         while True:
             try:
-                response = get(url).json()
+                response = get(url, timeout=60).json()
             except:
                 continue
             if response['success']:
