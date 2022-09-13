@@ -83,7 +83,7 @@ def check_active_offers(tm_api, counter=0):
 
     check_offers_url = 'https://market.csgo.com/api/v2/trade-request-give-p2p-all?key=' + tm_api
     try:
-        response = get(check_offers_url)
+        response = get(check_offers_url, timeout=60)
         if response.json()['success']:
             return response.json()['offers']
         else:
@@ -98,7 +98,7 @@ def get_my_items_to_list(tm_api):
     url = 'https://market.csgo.com/api/v2/my-inventory/?key=' + tm_api
     for i in range(3):
         try:
-            items = get(url).json()['items']
+            items = get(url, timeout=60).json()['items']
             return items
         except:
             continue
@@ -205,7 +205,7 @@ class TmFighter:
             url = f'https://market.csgo.com/api/v2/add-to-sale?key={self.tm_api}&id={item_id}&price=1000000000&' \
                   f'cur={self.currency_name}'
             try:
-                get(url)
+                get(url, timeout=60)
             except:
                 continue
             message(self.account_name, 'n>', f'{i["market_hash_name"]} is listed!')
@@ -245,7 +245,7 @@ class TmFighter:
     def get_min_threshold(self, item_name):
         tm_url = f'https://market.csgo.com/api/v2/get-list-items-info?key={self.tm_api}&list_hash_name[]=' + item_name
         try:
-            response = get(tm_url)
+            response = get(tm_url, timeout=60)
             if response.status_code != 200:
                 message(self.account_name, 'r', 'TM is not responding')
                 return self.error_getting_thresholds.append(item_name)
@@ -303,7 +303,16 @@ class TmFighter:
         except:
             message(self.account_name, 'r', 'Steam is not responding..')
             return None
-        return response.json()['sell_order_graph'][0][0]
+        try:
+            steam_buy_order = response.json()['sell_order_graph'][0][0]
+            return steam_buy_order
+        except:
+            try:
+                steam_buy_order = response.json()['buy_order_graph'][0][0]
+                return steam_buy_order
+            except:
+                message(self.account_name, 'r', f'{item_name} - No listings for this item')
+                return None
 
     def start_and_join_threads(self):
         for thread in self.threads:
@@ -317,7 +326,7 @@ class TmFighter:
         self.my_items_on_sale_dict = {}
         url = 'https://market.csgo.com/api/v2/items?key=' + self.tm_api
         try:
-            non_filtered_list = get(url).json()['items']
+            non_filtered_list = get(url, timeout=60).json()['items']
         except:
             message(self.account_name, 'r', 'TM is not responding')
             return False
@@ -358,7 +367,7 @@ class TmFighter:
         message(self.account_name, 'm>', f'Getting max price of {item_name}')
         url = f'https://market.csgo.com/api/v2/get-list-items-info?key={self.tm_api}&list_hash_name[]=' + item_name
         try:
-            response = get(url)
+            response = get(url, timeout=60)
             max_price = response.json()['data'][item_name]['max']
             return max_price * self.currency_coefficient
         except:
