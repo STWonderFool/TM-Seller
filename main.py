@@ -18,6 +18,8 @@ from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
 from steampy.exceptions import CaptchaRequired, InvalidCredentials
 from steampy.login import LoginExecutor
+from fake_useragent import UserAgent
+from urllib.parse import quote
 
 stop_flag = False
 
@@ -108,7 +110,7 @@ def get_my_items_to_list(tm_api):
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
     try:
-        response = get(url + item_name).text
+        response = get(url + item_name, timeout=60).text
         item_id = findall(r'Market_LoadOrderSpread\(\s(\d+)', response)[0]
     except:
         message(account_name, 'r', 'Error getting item ID :(')
@@ -131,6 +133,8 @@ class TmFighter:
         self.password = settings[self.account_name]['password']
         self.tm_api = settings[self.account_name]['tm_api']
         self.mafile_name = settings[self.account_name]['maFile']
+
+        self.user_agent = UserAgent().random
 
         # Fighter settings
         self.tm_coefficient = settings['tm_min_threshold']
@@ -295,8 +299,14 @@ class TmFighter:
 
         url = f'https://steamcommunity.com/market/itemordershistogram?country=RU&language=english&currency=' \
               f'{self.currency_code}&item_nameid=' + item_id
+
+        headers = {
+            'Referer': quote(f'https://steamcommunity.com/market/listings/730/{item_name}'),
+            'User-Agent': self.user_agent
+        }
+
         try:
-            response = get(url)
+            response = get(url, headers=headers, timeout=60)
             if response.status_code != 200:
                 message(self.account_name, 'r', 'Steam is not responding')
                 return None
@@ -481,8 +491,8 @@ class ItemsSender:
                 print(format_exc())
 
     def is_session_alive(self):
-        main_page_response = self.session.get('https://steamcommunity.com/')
         try:
+            main_page_response = self.session.get('https://steamcommunity.com/', timeout=60)
             response = self.login.lower() in main_page_response.text.lower()
         except:
             return False
@@ -493,7 +503,7 @@ class ItemsSender:
 
         url = 'https://steamcommunity.com/dev/apikey'
         try:
-            response = self.session.get(url)
+            response = self.session.get(url, timeout=60)
             soup = BeautifulSoup(response.content, 'html.parser')
             steam_api = soup.find('div', id='bodyContents_ex').p.text.split()[1]
             return steam_api
@@ -511,7 +521,7 @@ class ItemsSender:
             url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
 
             try:
-                trade_offers = get(url).json()['response']['trade_offers_sent']
+                trade_offers = get(url, timeout=60).json()['response']['trade_offers_sent']
                 for i in trade_offers:
                     if time() - i['time_created'] > 600:
                         try:
