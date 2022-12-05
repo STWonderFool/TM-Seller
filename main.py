@@ -18,7 +18,8 @@ from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
 from steampy.exceptions import CaptchaRequired, InvalidCredentials
 from steampy.login import LoginExecutor
-from fake_useragent import UserAgent
+from random_user_agent.user_agent import UserAgent
+from random_user_agent.params import SoftwareName, OperatingSystem
 from urllib.parse import quote
 
 stop_flag = False
@@ -134,7 +135,9 @@ class TmFighter:
         self.tm_api = settings[self.account_name]['tm_api']
         self.mafile_name = settings[self.account_name]['maFile']
 
-        self.user_agent = UserAgent().random
+        user_agent_rotator = UserAgent(software_names=SoftwareName.CHROME.value,
+                                       operating_systems=OperatingSystem.WINDOWS.value, limit=1)
+        self.user_agent = user_agent_rotator.get_random_user_agent()
 
         # Fighter settings
         self.tm_coefficient = settings['tm_min_threshold']
