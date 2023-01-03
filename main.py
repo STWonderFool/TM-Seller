@@ -530,7 +530,7 @@ class ItemsSender:
             try:
                 trade_offers = get(url, timeout=60).json()['response']['trade_offers_sent']
                 for i in trade_offers:
-                    if time() - i['time_created'] > 600 and i['message'] in self.sent_offers_messages:
+                    if time() - i['time_created'] > 600 and i['message'] in self.sent_offers_messages and i['trade_offer_state'] == 2:
                         try:
                             self.cancel_trade_offer(i['tradeofferid'])
                             message(self.account_name, 'n', f'Canceled offer #{i["tradeofferid"]}')
