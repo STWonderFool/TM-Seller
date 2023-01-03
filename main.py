@@ -530,9 +530,10 @@ class ItemsSender:
             try:
                 trade_offers = get(url, timeout=60).json()['response']['trade_offers_sent']
                 for i in trade_offers:
-                    if time() - i['time_created'] > 600:
+                    if time() - i['time_created'] > 600 and i['message'] in self.sent_offers_messages:
                         try:
                             self.cancel_trade_offer(i['tradeofferid'])
+                            message(self.account_name, 'n', f'Canceled offer #{i["tradeofferid"]}')
                         except:
                             message(self.account_name, 'r', 'Trade offer cancellation error')
             except:
@@ -589,6 +590,7 @@ class ItemsSender:
                 trade_id = response.json()['tradeofferid']
                 Thread(target=self.confirm_trade_offer, args=(trade_id,)).start()
                 message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
+                sleep(3)
                 self.sent_offers_messages.append(offer['tradeoffermessage'])
                 continue
 
