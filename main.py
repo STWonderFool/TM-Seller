@@ -560,10 +560,11 @@ class ItemsSender:
 
         return self.session.post(create_offer_link, data=data, headers=headers)
 
-    def confirm_trade_offer(self, trade_id):
+    def confirm_all_trade_offers(self):
         for i in range(3):
             try:
-                self.confirmation_executor.send_trade_allow_request(trade_id)
+                self.confirmation_executor.allow_only_trade_offers()
+                return
             except:
                 sleep(60)
 
@@ -587,16 +588,15 @@ class ItemsSender:
 
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
-                trade_id = response.json()['tradeofferid']
-                Thread(target=self.confirm_trade_offer, args=(trade_id,)).start()
                 message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
-                sleep(3)
+                sleep(1)
                 self.sent_offers_messages.append(offer['tradeoffermessage'])
                 continue
 
             # If error in sending offer
             else:
                 message(self.account_name, 'r', f'Error sending offer {response.text}')
+        self.confirm_all_trade_offers()
 
     def login_to_account(self):
         global stop_flag
