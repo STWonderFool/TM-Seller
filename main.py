@@ -486,6 +486,10 @@ class ItemsSender:
                         continue
 
                     offers = self.filter_offers_list(offers)
+                    if not offers:
+                        message(self.account_name, 'y>', 'No active offers')
+                        sleep(30)
+                        continue
                     try:
                         self.create_offers(offers)
                     except:
@@ -563,9 +567,11 @@ class ItemsSender:
     def confirm_all_trade_offers(self):
         for i in range(3):
             try:
+                message(self.account_name, 'y', 'Confirming..')
                 self.confirmation_executor.allow_only_trade_offers()
                 return
             except:
+                printy(f'[r]{format_exc()}')
                 sleep(60)
 
     def create_offers(self, offers):
