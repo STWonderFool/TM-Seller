@@ -603,19 +603,19 @@ class ItemsSender:
     def login_to_account(self):
         global stop_flag
 
-        message(self.account_name, 'y>', 'Logining to account..')
+        message(self.login, 'y>', 'Logining to account..')
         try:
             self.session = LoginExecutor(self.login, self.password, self.shared_secret).run()
 
         except:
-            telegram_notify(f'Unexpected error in login to {self.account_name}')
-            message(self.account_name, 'r', 'Unexpected error in login')
+            telegram_notify(self.chat_id, self.token, f'Unexpected error in login to {self.login}')
+            message(self.login, 'r', 'Unexpected error in login')
             sleep(60)
             return False
 
         else:
-            message(self.account_name, 'n', 'Success login')
-            telegram_notify(f'Success login to {self.account_name}')
+            message(self.login, 'n', 'Success login')
+            telegram_notify(self.chat_id, self.token, f'Success login to {self.login}')
             self.cookies = dict_from_cookiejar(self.session.cookies)
             self.confirmation_executor = ConfirmationExecutor(self.identity_secret, self.steam_id, self.session)
             return True
