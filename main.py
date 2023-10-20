@@ -2,6 +2,7 @@ from datetime import datetime
 from json import dumps
 from json import load, dump
 from os import environ
+from random import randint
 from re import findall
 from statistics import median
 from string import capwords
@@ -9,17 +10,15 @@ from struct import unpack
 from threading import Thread
 from time import sleep, time
 from traceback import format_exc
+from urllib.parse import quote
 
+from MySteam.login import LoginExecutor
 from bs4 import BeautifulSoup
 from notifiers import get_notifier
 from printy import printy
-from requests import get, Session
+from requests import get
 from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
-from steampy.exceptions import CaptchaRequired, InvalidCredentials
-from steampy.login import LoginExecutor
-from random import randint
-from urllib.parse import quote
 
 stop_flag = False
 
@@ -452,7 +451,6 @@ class ItemsSender:
             self.steam_id = str(mafile['Session']['SteamID'])
             self.identity_secret = mafile['identity_secret']
 
-        self.session = Session()
         while True:
             if self.login_to_account():
                 self.steam_api = self.get_my_steam_api()
@@ -609,24 +607,12 @@ class ItemsSender:
 
         message(self.account_name, 'y>', 'Logining to account..')
         try:
-            LoginExecutor(self.login, self.password, self.shared_secret, self.session).login()
-
-        except InvalidCredentials:
-            telegram_notify(f'Incorrect login/password in {self.account_name} or steam lags')
-            message(self.account_name, 'r', 'Incorrect login/password or steam lags, sleeping for next 60 seconds..')
-            sleep(60)
-            return False
-
-        except CaptchaRequired:
-            telegram_notify(f'Captcha required on {self.account_name}')
-            message(self.account_name, 'r', 'Captcha required, sleeping for next 60 seconds..')
-            sleep(60)
-            return False
+            self.session = LoginExecutor(self.login, self.password, self.shared_secret).run()
 
         except:
             telegram_notify(f'Unexpected error in login to {self.account_name}')
             message(self.account_name, 'r', 'Unexpected error in login')
-            sleep(30)
+            sleep(60)
             return False
 
         else:
