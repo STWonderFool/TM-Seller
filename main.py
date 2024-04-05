@@ -29,10 +29,12 @@ def get_user_agent_function():
     useragent = user_agents_list[randint(1, 99)]
     return useragent
 
+
 def account_id_to_steam_id(account_id):
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
     return str(unpack('>Q', last_bytes + first_bytes)[0])
+
 
 def telegram_notify(text):
     with open('Accounts & Settings.json') as file:
@@ -43,8 +45,10 @@ def telegram_notify(text):
         telegram = get_notifier('telegram')
         telegram.notify(chat_id=chat_id, token=token, message=text)
 
+
 def message(account_name, color, text):
     printy(f'[m][{datetime.now().strftime("%H:%M")} {account_name}]@ [{color}]{text}')
+
 
 def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
@@ -57,11 +61,12 @@ def update_inventory(tm_api):
             continue
     return False
 
+
 def ping_pong(account_name, tm_api):
     global stop_flag
     update_inventory(tm_api)
 
-    url = 'https://market.csgo.com/api/v2/ping?key=' + tm_api + '&v=2'
+    url = 'https://market.csgo.com/api/v2/ping?key=' + tm_api
     while True:
         if stop_flag:
             message(account_name, 'y', 'Exit from ping-pong')
@@ -76,7 +81,8 @@ def ping_pong(account_name, tm_api):
                 message(account_name, 'w', f'Ping pong - {response}')
                 break
             message(account_name, 'r', f'Ping pong - {response}')
-        sleep(130)
+        sleep(80)
+
 
 def check_active_offers(tm_api, counter=0):
     counter += 1
@@ -94,6 +100,7 @@ def check_active_offers(tm_api, counter=0):
     except:
         return False
 
+
 def get_my_items_to_list(tm_api):
     update_inventory(tm_api)
     url = 'https://market.csgo.com/api/v2/my-inventory/?key=' + tm_api
@@ -105,6 +112,7 @@ def get_my_items_to_list(tm_api):
             continue
     return False
 
+
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
     try:
@@ -115,19 +123,6 @@ def get_single_item_id(item_name, account_name):
         return None
     message(account_name, 'n', 'Got new item ID ^ ^')
     return item_id
-
-def register_trade(tm_api, trade_id, account_name):
-    url = f'https://market.csgo.com/api/v2/trade-ready?key={tm_api}&tradeoffer={trade_id}'
-    try:
-        response = get(url, timeout=60)
-        if '"success":true' in response.text:
-            message(account_name, 'y>', f'Offer #{trade_id} registered by TM')
-            return
-    except:
-        pass
-    message(account_name, 'r', 'Some error in registering offer')
-    sleep(30)
-    return register_trade(tm_api, trade_id, account_name)
 
 
 class TmFighter:
@@ -461,7 +456,7 @@ class ItemsSender:
                 self.steam_api = self.get_my_steam_api()
                 break
 
-        self.sent_offers_messages = {}
+        self.sent_offers_messages = []
 
         self.run()
 
@@ -532,15 +527,19 @@ class ItemsSender:
             if stop_flag:
                 return
             sleep(90)
-            for i in self.sent_offers_messages.copy():
-                trade_id, trade_time = self.sent_offers_messages[i]
-                if time() - trade_time > 600:
-                    try:
-                        self.cancel_trade_offer(trade_id)
-                        message(self.account_name, 'n', f'Canceled offer #{trade_id}')
-                        del self.sent_offers_messages[i]
-                    except:
-                        message(self.account_name, 'r', 'Trade offer cancellation error')
+            url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
+
+            try:
+                trade_offers = get(url, timeout=60).json()['response']['trade_offers_sent']
+                for i in trade_offers:
+                    if time() - i['time_created'] > 600 and i['message'] in self.sent_offers_messages and i['trade_offer_state'] in [2, 9]:
+                        try:
+                            self.cancel_trade_offer(i['tradeofferid'])
+                            message(self.account_name, 'n', f'Canceled offer #{i["tradeofferid"]}')
+                        except:
+                            message(self.account_name, 'r', 'Trade offer cancellation error')
+            except:
+                pass
 
     def filter_offers_list(self, offers):
         for offer in offers.copy():
@@ -593,11 +592,9 @@ class ItemsSender:
 
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
-                trade_id = response.json()['tradeofferid']
-                self.sent_offers_messages[offer['tradeoffermessage']] = trade_id, time()
-                Thread(target=register_trade, args=(self.tm_api, trade_id, self.account_name)).start()
-                message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating...')
+                message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
                 sleep(1)
+                self.sent_offers_messages.append(offer['tradeoffermessage'])
                 continue
 
             # If error in sending offer
