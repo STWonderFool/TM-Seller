@@ -16,7 +16,7 @@ from MySteam.login import LoginExecutor
 from bs4 import BeautifulSoup
 from notifiers import get_notifier
 from printy import printy
-from requests import get
+from requests import get, Session, post
 from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
 
@@ -29,12 +29,10 @@ def get_user_agent_function():
     useragent = user_agents_list[randint(1, 99)]
     return useragent
 
-
 def account_id_to_steam_id(account_id):
     first_bytes = int(account_id).to_bytes(4, byteorder='big')
     last_bytes = 0x1100001.to_bytes(4, byteorder='big')
     return str(unpack('>Q', last_bytes + first_bytes)[0])
-
 
 def telegram_notify(text):
     with open('Accounts & Settings.json') as file:
@@ -45,10 +43,8 @@ def telegram_notify(text):
         telegram = get_notifier('telegram')
         telegram.notify(chat_id=chat_id, token=token, message=text)
 
-
 def message(account_name, color, text):
     printy(f'[m][{datetime.now().strftime("%H:%M")} {account_name}]@ [{color}]{text}')
-
 
 def update_inventory(tm_api):
     url = 'https://market.csgo.com/api/v2/update-inventory/?key=' + tm_api
@@ -60,29 +56,6 @@ def update_inventory(tm_api):
         except:
             continue
     return False
-
-
-def ping_pong(account_name, tm_api):
-    global stop_flag
-    update_inventory(tm_api)
-
-    url = 'https://market.csgo.com/api/v2/ping?key=' + tm_api
-    while True:
-        if stop_flag:
-            message(account_name, 'y', 'Exit from ping-pong')
-            return
-
-        while True:
-            try:
-                response = get(url, timeout=60).json()
-            except:
-                continue
-            if response['success']:
-                message(account_name, 'w', f'Ping pong - {response}')
-                break
-            message(account_name, 'r', f'Ping pong - {response}')
-        sleep(80)
-
 
 def check_active_offers(tm_api, counter=0):
     counter += 1
@@ -100,7 +73,6 @@ def check_active_offers(tm_api, counter=0):
     except:
         return False
 
-
 def get_my_items_to_list(tm_api):
     update_inventory(tm_api)
     url = 'https://market.csgo.com/api/v2/my-inventory/?key=' + tm_api
@@ -111,7 +83,6 @@ def get_my_items_to_list(tm_api):
         except:
             continue
     return False
-
 
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
@@ -452,7 +423,7 @@ class ItemsSender:
             self.identity_secret = mafile['identity_secret']
 
         while True:
-            if self.login_to_account():
+            if self.login_to_account() and self.get_access_token():
                 self.steam_api = self.get_my_steam_api()
                 break
 
@@ -460,12 +431,51 @@ class ItemsSender:
 
         self.run()
 
+    def ping_pong_cycle(self):
+        global stop_flag
+
+        url = 'https://market.csgo.com/api/v2/ping-new?key=' + self.tm_api
+        while True:
+            if stop_flag:
+                message(self.login, 'y', 'Exit from ping-pong')
+                return
+
+            while True:
+                try:
+                    json = {'access_token': self.access_token}
+                    response = post(url, json=json, timeout=60).json()
+                    if response['success']:
+                        message(self.login, 'w', f'Ping pong - {response}')
+                        break
+                    message(self.login, 'r', f'Ping pong - {response}')
+                except:
+                    continue
+            sleep(130)
+
+    def get_access_token(self):
+        url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
+        try:
+            token = self.session.get(url).json()['data']['webapi_token']
+            message(self.login, 'n', 'Got access token!')
+            self.access_token = token
+            return True
+        except:
+            message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
+        sleep(30)
+        return self.get_access_token()
+
+    def get_access_token_cycle(self):
+        while True:
+            sleep(28800)
+            self.get_access_token()
+
     def run(self):
         global stop_flag
 
         try:
-            Thread(target=self.cancel_all_offers_older_10_min).start()
-            Thread(target=ping_pong, args=(self.account_name, self.tm_api)).start()
+            Thread(target=self.get_access_token_cycle).start()
+            Thread(target=self.ping_pong_cycle).start()
+            # Thread(target=self.cancel_all_offers_older_10_min).start()
         except:
             telegram_notify(f'Critical error: {format_exc()}')
 
@@ -593,8 +603,8 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
-                sleep(1)
                 self.sent_offers_messages.append(offer['tradeoffermessage'])
+                sleep(1)
                 continue
 
             # If error in sending offer
