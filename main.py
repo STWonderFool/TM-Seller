@@ -443,12 +443,12 @@ class ItemsSender:
             while True:
                 try:
                     json = {'access_token': self.access_token}
-                    response = post(url, json=json, timeout=60)
-                    if 'success":true' in response.text:
+                    response = post(url, json=json, timeout=60).text
+                    if 'success":true' in response:
                         message(self.login, 'w', f'Ping pong - {response}')
                         break
                     message(self.login, 'r', f'Ping pong - {response}')
-                    if 'invalid_access_token' in response.text:
+                    if 'invalid_access_token' in response:
                         self.get_access_token()
                 except:
                     continue
