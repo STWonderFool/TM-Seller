@@ -450,11 +450,13 @@ class ItemsSender:
             while True:
                 try:
                     json = {'access_token': self.access_token}
-                    response = post(url, json=json, timeout=60).json()
-                    if response['success']:
+                    response = post(url, json=json, timeout=60)
+                    if 'success":true' in response.text:
                         message(self.login, 'w', f'Ping pong - {response}')
                         break
                     message(self.login, 'r', f'Ping pong - {response}')
+                    if 'invalid_access_token' in response.text:
+                        self.get_access_token()
                 except:
                     continue
             sleep(130)
@@ -471,16 +473,10 @@ class ItemsSender:
         sleep(30)
         return self.get_access_token()
 
-    def get_access_token_cycle(self):
-        while True:
-            sleep(28800)
-            self.get_access_token()
-
     def run(self):
         global stop_flag
 
         try:
-            Thread(target=self.get_access_token_cycle).start()
             Thread(target=self.ping_pong_cycle).start()
             # Thread(target=self.cancel_all_offers_older_10_min).start()
         except:
