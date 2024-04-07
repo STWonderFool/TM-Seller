@@ -12,14 +12,14 @@ from time import sleep, time
 from traceback import format_exc
 from urllib.parse import quote
 
+from MySteam.login import LoginExecutor
+from MySteam.steam import get_sent_offers
 from bs4 import BeautifulSoup
 from notifiers import get_notifier
 from printy import printy
 from requests import get, post
 from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
-from MySteam.login import LoginExecutor
-from MySteam.steam import get_sent_offers
 
 stop_flag = False
 
@@ -540,7 +540,7 @@ class ItemsSender:
                 message(self.login, 'r', 'Error getting sent offers list')
                 continue
             for trade_id in offers:
-                trade_message = offers[trade_id]
+                trade_message = offers[trade_id]['trade_message']
                 if trade_message in self.sent_offers_messages and time() - self.sent_offers_messages[trade_message] > 600:
                     try:
                         self.cancel_trade_offer(trade_id)
