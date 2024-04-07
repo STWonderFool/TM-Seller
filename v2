@@ -123,6 +123,19 @@ def check_active_offers(tm_api, counter=0):
     except:
         return False
 
+def register_trade(tm_api, trade_id, account_name):
+    for i in range(10):
+        url = f'https://market.csgo.com/api/v2/trade-ready?key={tm_api}&tradeoffer={trade_id}'
+        try:
+            response = get(url, timeout=60)
+            if '"success":true' in response.text:
+                message(account_name, 'y>', f'Offer #{trade_id} registered by TM')
+                return
+        except:
+            pass
+        message(account_name, 'r', 'Some error in registering offer')
+        sleep(30)
+
 
 class TmFighter:
     def __init__(self):
@@ -438,41 +451,6 @@ class ItemsSender:
 
         self.run()
 
-    def ping_pong_cycle(self):
-        global stop_flag
-
-        url = 'https://market.csgo.com/api/v2/ping-new?key=' + self.tm_api
-        while True:
-            if stop_flag:
-                message(self.login, 'y', 'Exit from ping-pong')
-                return
-
-            while True:
-                try:
-                    json = {'access_token': self.access_token}
-                    response = post(url, json=json, timeout=60).text
-                    if 'success":true' in response:
-                        message(self.login, 'w', f'Ping pong - {response}')
-                        break
-                    message(self.login, 'r', f'Ping pong - {response}')
-                    if 'invalid_access_token' in response:
-                        self.get_access_token()
-                except:
-                    continue
-            sleep(130)
-
-    def get_access_token(self):
-        url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
-        try:
-            token = self.session.get(url).json()['data']['webapi_token']
-            message(self.login, 'n', 'Got access token!')
-            self.access_token = token
-            return True
-        except:
-            message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
-        sleep(30)
-        return self.get_access_token()
-
     def run(self):
         global stop_flag
 
@@ -510,6 +488,41 @@ class ItemsSender:
             except:
                 telegram_notify(self.chat_id, self.token, f'Critical error in Sender module {self.login}')
                 print(format_exc())
+
+    def ping_pong_cycle(self):
+        global stop_flag
+
+        url = 'https://market.csgo.com/api/v2/ping-new?key=' + self.tm_api
+        while True:
+            if stop_flag:
+                message(self.login, 'y', 'Exit from ping-pong')
+                return
+
+            while True:
+                try:
+                    json = {'access_token': self.access_token}
+                    response = post(url, json=json, timeout=60).text
+                    if 'success":true' in response:
+                        message(self.login, 'w', f'Ping pong - {response}')
+                        break
+                    message(self.login, 'r', f'Ping pong - {response}')
+                    if 'invalid_access_token' in response:
+                        self.get_access_token()
+                except:
+                    continue
+            sleep(130)
+
+    def get_access_token(self):
+        url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
+        try:
+            token = self.session.get(url).json()['data']['webapi_token']
+            message(self.login, 'n', 'Got access token!')
+            self.access_token = token
+            return True
+        except:
+            message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
+        sleep(30)
+        return self.get_access_token()
 
     def is_session_alive(self):
         try:
@@ -596,6 +609,7 @@ class ItemsSender:
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
                 self.sent_offers_messages[offer['tradeoffermessage']] = trade_id, time()
+                Thread(target=register_trade, args=(self.tm_api, trade_id, self.login)).start()
                 message(self.login, 'y>', f'Offer #{counter}/{len(offers)} creating..')
                 sleep(1)
                 continue
