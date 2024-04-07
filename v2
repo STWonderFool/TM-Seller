@@ -434,7 +434,7 @@ class ItemsSender:
                 self.steam_api = self.get_my_steam_api()
                 break
 
-        self.sent_offers_messages = {}
+        self.sent_offers_messages, self.canceled_offers = {}, []
 
         self.run()
 
@@ -478,7 +478,6 @@ class ItemsSender:
 
         try:
             Thread(target=self.ping_pong_cycle).start()
-            Thread(target=self.cancel_all_offers_older_10_min).start()
         except:
             telegram_notify(self.chat_id, self.token, f'Critical error: {format_exc()}')
 
@@ -533,32 +532,22 @@ class ItemsSender:
             message(self.login, 'r', f'Error getting your steam api')
             stop_flag = True
 
-    def cancel_all_offers_older_10_min(self):
-        global stop_flag
-
-        while True:
-            if stop_flag:
-                return
-            sleep(500)
-            message(self.login, 'n', f'Getting sent offers!')
-            offers = get_sent_offers(self.session, self.steam_id)
-            if offers == 'ERROR':
-                message(self.login, 'r', 'Error getting sent offers list')
-                continue
-            for trade_id in offers:
-                trade_message = offers[trade_id]['trade_message']
-                if trade_message in self.sent_offers_messages and time() - self.sent_offers_messages[trade_message] > 600:
-                    try:
-                        self.cancel_trade_offer(trade_id)
-                        message(self.login, 'n', f'Canceled offer #{trade_id}')
-                    except:
-                        message(self.login, 'r', 'Trade offer cancellation error')
-
     def filter_offers_list(self, offers):
         for offer in offers.copy():
             if offer['tradeoffermessage'] in self.sent_offers_messages:
+                Thread(target=self.check_offer_to_cancel, args=(offer['tradeoffermessage'],)).start()
                 offers.remove(offer)
         return offers
+
+    def check_offer_to_cancel(self, trade_message):
+        if time() - self.sent_offers_messages[trade_message][1] > 600 and trade_message not in self.canceled_offers:
+            try:
+                trade_id = self.sent_offers_messages[trade_message][0]
+                self.cancel_trade_offer(trade_id)
+                self.canceled_offers.append(trade_message)
+                message(self.login, 'n', f'Canceled offer #{trade_id}')
+            except:
+                message(self.login, 'r', 'Trade offer cancellation error')
 
     def create_single_offer(self, offer):
         create_offer_link = 'https://steamcommunity.com/tradeoffer/new/send'
@@ -605,8 +594,9 @@ class ItemsSender:
 
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
+                trade_id = response.json()['tradeofferid']
+                self.sent_offers_messages[offer['tradeoffermessage']] = trade_id, time()
                 message(self.login, 'y>', f'Offer #{counter}/{len(offers)} creating..')
-                self.sent_offers_messages[offer['tradeoffermessage']] = time()
                 sleep(1)
                 continue
 
