@@ -12,13 +12,14 @@ from time import sleep, time
 from traceback import format_exc
 from urllib.parse import quote
 
-from MySteam.login import LoginExecutor
 from bs4 import BeautifulSoup
 from notifiers import get_notifier
 from printy import printy
-from requests import get, Session, post
+from requests import get, post
 from requests.utils import dict_from_cookiejar
 from steampy.confirmation import ConfirmationExecutor
+from MySteam.login import LoginExecutor
+from MySteam.steam import get_sent_offers
 
 stop_flag = False
 
@@ -471,7 +472,7 @@ class ItemsSender:
 
         try:
             Thread(target=self.ping_pong_cycle).start()
-            # Thread(target=self.cancel_all_offers_older_10_min).start()
+            Thread(target=self.cancel_all_offers_older_10_min).start()
         except:
             telegram_notify(f'Critical error: {format_exc()}')
 
@@ -532,20 +533,20 @@ class ItemsSender:
         while True:
             if stop_flag:
                 return
-            sleep(90)
-            url = f'http://api.steampowered.com/IEconService/GetTradeOffers/v1/?key={self.steam_api}&get_sent_offers=1&active_only=1'
-
-            try:
-                trade_offers = get(url, timeout=60).json()['response']['trade_offers_sent']
-                for i in trade_offers:
-                    if time() - i['time_created'] > 600 and i['message'] in self.sent_offers_messages and i['trade_offer_state'] in [2, 9]:
-                        try:
-                            self.cancel_trade_offer(i['tradeofferid'])
-                            message(self.account_name, 'n', f'Canceled offer #{i["tradeofferid"]}')
-                        except:
-                            message(self.account_name, 'r', 'Trade offer cancellation error')
-            except:
-                pass
+            sleep(500)
+            message(self.login, 'n', f'Getting sent offers!')
+            offers = get_sent_offers(self.session, self.steam_id)
+            if offers == 'ERROR':
+                message(self.login, 'r', 'Error getting sent offers list')
+                continue
+            for trade_id in offers:
+                trade_message = offers[trade_id]
+                if trade_message in self.sent_offers_messages and time() - self.sent_offers_messages[trade_message] > 600:
+                    try:
+                        self.cancel_trade_offer(trade_id)
+                        message(self.login, 'n', f'Canceled offer #{trade_id}')
+                    except:
+                        message(self.login, 'r', 'Trade offer cancellation error')
 
     def filter_offers_list(self, offers):
         for offer in offers.copy():
