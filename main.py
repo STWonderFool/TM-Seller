@@ -428,7 +428,7 @@ class ItemsSender:
                 self.steam_api = self.get_my_steam_api()
                 break
 
-        self.sent_offers_messages = []
+        self.sent_offers_messages = {}
 
         self.run()
 
@@ -600,7 +600,7 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
-                self.sent_offers_messages.append(offer['tradeoffermessage'])
+                self.sent_offers_messages[offer['tradeoffermessage']] = time()
                 sleep(1)
                 continue
 
