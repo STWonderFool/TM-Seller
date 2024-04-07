@@ -96,6 +96,19 @@ def get_single_item_id(item_name, account_name):
     message(account_name, 'n', 'Got new item ID ^ ^')
     return item_id
 
+def register_trade(tm_api, trade_id, account_name):
+    for i in range(10):
+        url = f'https://market.csgo.com/api/v2/trade-ready?key={tm_api}&tradeoffer={trade_id}'
+        try:
+            response = get(url, timeout=60)
+            if '"success":true' in response.text:
+                message(account_name, 'y>', f'Offer #{trade_id} registered by TM')
+                return
+        except:
+            pass
+        message(account_name, 'r', 'Some error in registering offer')
+        sleep(30)
+
 
 class TmFighter:
     def __init__(self):
@@ -428,9 +441,47 @@ class ItemsSender:
                 self.steam_api = self.get_my_steam_api()
                 break
 
-        self.sent_offers_messages = {}
+        self.sent_offers_messages, self.canceled_offers = {}, []
 
         self.run()
+
+    def run(self):
+        global stop_flag
+
+        try:
+            Thread(target=self.ping_pong_cycle).start()
+        except:
+            telegram_notify(f'Critical error: {format_exc()}')
+
+        while True:
+            try:
+                while True:
+                    if stop_flag:
+                        message(self.account_name, 'y', 'Exit from sender')
+                        return
+
+                    message(self.account_name, 'y>', 'Checking for new trades..')
+                    offers = check_active_offers(self.tm_api)
+                    if not offers:
+                        message(self.account_name, 'y>', 'No active offers')
+                        sleep(30)
+                        continue
+
+                    offers = self.filter_offers_list(offers)
+                    if not offers:
+                        message(self.account_name, 'y>', 'No active offers')
+                        sleep(30)
+                        continue
+                    try:
+                        self.create_offers(offers)
+                    except:
+                        message(self.account_name, 'r', 'Some error in creating offers')
+
+                    message(self.account_name, 'y>', 'Sent all offers!')
+                    sleep(30)
+            except:
+                telegram_notify(f'Critical error in Sender module {self.account_name}')
+                print(format_exc())
 
     def ping_pong_cycle(self):
         global stop_flag
@@ -467,45 +518,6 @@ class ItemsSender:
         sleep(30)
         return self.get_access_token()
 
-    def run(self):
-        global stop_flag
-
-        try:
-            Thread(target=self.ping_pong_cycle).start()
-            Thread(target=self.cancel_all_offers_older_10_min).start()
-        except:
-            telegram_notify(f'Critical error: {format_exc()}')
-
-        while True:
-            try:
-                while True:
-                    if stop_flag:
-                        message(self.account_name, 'y', 'Exit from sender')
-                        return
-
-                    message(self.account_name, 'y>', 'Checking for new trades..')
-                    offers = check_active_offers(self.tm_api)
-                    if not offers:
-                        message(self.account_name, 'y>', 'No active offers')
-                        sleep(30)
-                        continue
-
-                    offers = self.filter_offers_list(offers)
-                    if not offers:
-                        message(self.account_name, 'y>', 'No active offers')
-                        sleep(30)
-                        continue
-                    try:
-                        self.create_offers(offers)
-                    except:
-                        message(self.account_name, 'r', 'Some error in creating offers')
-
-                    message(self.account_name, 'y>', 'Sent all offers!')
-                    sleep(30)
-            except:
-                telegram_notify(f'Critical error in Sender module {self.account_name}')
-                print(format_exc())
-
     def is_session_alive(self):
         try:
             main_page_response = self.session.get('https://steamcommunity.com/', timeout=60)
@@ -527,32 +539,22 @@ class ItemsSender:
             message(self.account_name, 'r', f'Error getting your steam api')
             stop_flag = True
 
-    def cancel_all_offers_older_10_min(self):
-        global stop_flag
-
-        while True:
-            if stop_flag:
-                return
-            sleep(500)
-            message(self.login, 'n', f'Getting sent offers!')
-            offers = get_sent_offers(self.session, self.steam_id)
-            if offers == 'ERROR':
-                message(self.login, 'r', 'Error getting sent offers list')
-                continue
-            for trade_id in offers:
-                trade_message = offers[trade_id]['trade_message']
-                if trade_message in self.sent_offers_messages and time() - self.sent_offers_messages[trade_message] > 600:
-                    try:
-                        self.cancel_trade_offer(trade_id)
-                        message(self.login, 'n', f'Canceled offer #{trade_id}')
-                    except:
-                        message(self.login, 'r', 'Trade offer cancellation error')
-
     def filter_offers_list(self, offers):
         for offer in offers.copy():
             if offer['tradeoffermessage'] in self.sent_offers_messages:
+                Thread(target=self.check_offer_to_cancel, args=(offer['tradeoffermessage'],)).start()
                 offers.remove(offer)
         return offers
+
+    def check_offer_to_cancel(self, trade_message):
+        if time() - self.sent_offers_messages[trade_message][1] > 600 and trade_message not in self.canceled_offers:
+            try:
+                trade_id = self.sent_offers_messages[trade_message][0]
+                self.cancel_trade_offer(trade_id)
+                self.canceled_offers.append(trade_message)
+                message(self.login, 'n', f'Canceled offer #{trade_id}')
+            except:
+                message(self.login, 'r', 'Trade offer cancellation error')
 
     def create_single_offer(self, offer):
         create_offer_link = 'https://steamcommunity.com/tradeoffer/new/send'
@@ -586,27 +588,29 @@ class ItemsSender:
             try:
                 response = self.create_single_offer(offer)
             except:
-                message(self.account_name, 'r', 'Steam is not responding..')
+                message(self.login, 'r', 'Steam is not responding..')
                 continue
 
             # If session expired
             if not response.json():
                 if not self.is_session_alive():
-                    message(self.account_name, 'r', 'Seems like session is expired, need relogin..')
+                    message(self.login, 'r', 'Seems like session is expired, need relogin..')
                     self.login_to_account()
                     return
                 continue
 
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
-                message(self.account_name, 'y>', f'Offer #{counter}/{len(offers)} creating..')
-                self.sent_offers_messages[offer['tradeoffermessage']] = time()
+                trade_id = response.json()['tradeofferid']
+                self.sent_offers_messages[offer['tradeoffermessage']] = trade_id, time()
+                Thread(target=register_trade, args=(self.tm_api, trade_id, self.login)).start()
+                message(self.login, 'y>', f'Offer #{counter}/{len(offers)} creating..')
                 sleep(1)
                 continue
 
             # If error in sending offer
             else:
-                message(self.account_name, 'r', f'Error sending offer {response.text}')
+                message(self.login, 'r', f'Error sending offer {response.text}')
         self.confirm_all_trade_offers()
 
     def login_to_account(self):
