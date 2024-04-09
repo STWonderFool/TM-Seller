@@ -515,6 +515,10 @@ class ItemsSender:
             return True
         except:
             message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
+            if not self.is_session_alive():
+                message(self.login, 'r', 'Seems like session is expired, need relogin..')
+                self.login_to_account()
+
         sleep(30)
         return self.get_access_token()
 
