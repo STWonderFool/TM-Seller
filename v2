@@ -521,6 +521,10 @@ class ItemsSender:
             return True
         except:
             message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
+            if not self.is_session_alive():
+                message(self.login, 'r', 'Seems like session is expired, need relogin..')
+                self.login_to_account()
+
         sleep(30)
         return self.get_access_token()
 
@@ -625,7 +629,6 @@ class ItemsSender:
         message(self.login, 'y>', 'Logining to account..')
         try:
             self.session = LoginExecutor(self.login, self.password, self.shared_secret).run()
-
         except:
             telegram_notify(self.chat_id, self.token, f'Unexpected error in login to {self.login}')
             message(self.login, 'r', 'Unexpected error in login')
