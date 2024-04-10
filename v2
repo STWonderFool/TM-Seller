@@ -447,7 +447,7 @@ class ItemsSender:
                 self.steam_api = self.get_my_steam_api()
                 break
 
-        self.sent_offers_messages, self.canceled_offers = {}, []
+        self.sent_offers_messages = []
 
         self.run()
 
@@ -510,7 +510,7 @@ class ItemsSender:
                         self.get_access_token()
                 except:
                     continue
-            sleep(130)
+            sleep(160)
 
     def get_access_token(self):
         url = 'https://steamcommunity.com/pointssummary/ajaxgetasyncconfig'
@@ -552,19 +552,8 @@ class ItemsSender:
     def filter_offers_list(self, offers):
         for offer in offers.copy():
             if offer['tradeoffermessage'] in self.sent_offers_messages:
-                Thread(target=self.check_offer_to_cancel, args=(offer['tradeoffermessage'],)).start()
                 offers.remove(offer)
         return offers
-
-    def check_offer_to_cancel(self, trade_message):
-        if time() - self.sent_offers_messages[trade_message][1] > 600 and trade_message not in self.canceled_offers:
-            try:
-                trade_id = self.sent_offers_messages[trade_message][0]
-                self.cancel_trade_offer(trade_id)
-                self.canceled_offers.append(trade_message)
-                message(self.login, 'n', f'Canceled offer #{trade_id}')
-            except:
-                message(self.login, 'r', 'Trade offer cancellation error')
 
     def create_single_offer(self, offer):
         create_offer_link = 'https://steamcommunity.com/tradeoffer/new/send'
@@ -612,8 +601,9 @@ class ItemsSender:
             # If session is ok, and trade offer need confirmation
             if response.status_code == 200:
                 trade_id = response.json()['tradeofferid']
-                self.sent_offers_messages[offer['tradeoffermessage']] = trade_id, time()
+                self.sent_offers_messages.append(offer['tradeoffermessage'])
                 Thread(target=register_trade, args=(self.tm_api, trade_id, self.login)).start()
+                Thread(target=self.cancel_trade_offer, args=(trade_id,)).start()
                 message(self.login, 'y>', f'Offer #{counter}/{len(offers)} creating..')
                 sleep(1)
                 continue
@@ -643,8 +633,14 @@ class ItemsSender:
             return True
 
     def cancel_trade_offer(self, trade_id):
+        sleep(600)
         url = 'https://steamcommunity.com/tradeoffer/' + trade_id + '/cancel'
-        return self.session.post(url, data={'sessionid': self.cookies['sessionid']})
+        try:
+            self.session.post(url, data={'sessionid': self.cookies['sessionid']}, timeout=60)
+            message(self.login, 'n', f'Canceled offer #{trade_id}')
+        except:
+            message(self.login, 'r', 'Trade offer cancellation error')
+            return self.cancel_trade_offer(trade_id)
 
 
 try:
