@@ -506,7 +506,7 @@ class ItemsSender:
                         message(self.login, 'w', f'Ping pong - {response}')
                         break
                     message(self.login, 'r', f'Ping pong - {response}')
-                    if 'invalid_access_token' in response:
+                    if 'invalid_access_token' in response or 'token expired' in response:
                         self.get_access_token()
                 except:
                     continue
