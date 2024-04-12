@@ -500,7 +500,7 @@ class ItemsSender:
                         message(self.login, 'w', f'Ping pong - {response}')
                         break
                     message(self.login, 'r', f'Ping pong - {response}')
-                    if 'invalid_access_token' in response:
+                    if 'invalid_access_token' in response or 'token expired' in response:
                         self.get_access_token()
                 except:
                     continue
@@ -636,7 +636,7 @@ class ItemsSender:
         except:
             message(self.login, 'r', 'Trade offer cancellation error')
             return self.cancel_trade_offer(trade_id)
-        
+
 
 printy('[m]Created by@ [w]vk.com/YunosRage\n')
 with open('Accounts & Settings.json') as file:
