@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from json import dumps
 from json import load, dump
@@ -13,7 +14,6 @@ from traceback import format_exc
 from urllib.parse import quote
 
 from MySteam.login import LoginExecutor
-from MySteam.steam import get_sent_offers
 from bs4 import BeautifulSoup
 from notifiers import get_notifier
 from printy import printy
@@ -526,7 +526,7 @@ class ItemsSender:
             message(self.login, 'r', 'Error getting access token, sleeping for 30s..')
         sleep(30)
         return self.get_access_token()
-        
+
     def is_session_alive(self):
         try:
             main_page_response = self.session.get('https://steamcommunity.com/', timeout=60)
@@ -642,6 +642,7 @@ class ItemsSender:
             return self.cancel_trade_offer(trade_id)
 
 
+os.system("mode con: cols=60 lines=30")
 try:
     TmFighter()
 except:
