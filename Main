@@ -382,7 +382,7 @@ class TmFighter:
                            f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
                            f' No competitors. Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
         message(self.login, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
-                                         f' First price: {prices[0] / self.currency_coefficient}, Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
+                                  f' First price: {prices[0] / self.currency_coefficient}, Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
     def list_all_items(self):
         items = get_my_items_to_list(self.tm_api)
@@ -448,6 +448,7 @@ class ItemsSender:
                 break
 
         self.sent_offers_messages = []
+        self.session_up_time = 0
 
         self.run()
 
@@ -529,6 +530,8 @@ class ItemsSender:
 
     def is_session_alive(self):
         try:
+            if time() - self.session_up_time > 72000:
+                1/0
             main_page_response = self.session.get('https://steamcommunity.com/', timeout=60)
             response = self.login.lower() in main_page_response.text.lower()
         except:
@@ -629,6 +632,7 @@ class ItemsSender:
             telegram_notify(self.chat_id, self.token, f'Success login to {self.login}')
             self.cookies = dict_from_cookiejar(self.session.cookies)
             self.confirmation_executor = ConfirmationExecutor(self.identity_secret, self.steam_id, self.session)
+            self.session_up_time = time()
             return True
 
     def cancel_trade_offer(self, trade_id):
