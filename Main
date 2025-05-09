@@ -166,6 +166,8 @@ class TmFighter:
         self.error_getting_thresholds = []
         self.threads = []
 
+        self.id_prices_pool = []
+
         self.run()
 
     def run(self):
@@ -199,6 +201,8 @@ class TmFighter:
             # Fight prices!
             changing_prices_time = time()
             self.change_item_prices()
+            if self.id_prices_pool:
+                self.mass_set_prices()
             message(self.login, 'w', f'Cycle time {round((time() - changing_prices_time) / 60, 2)} minutes')
 
     def get_min_thresholds_on_sell_items(self):
@@ -227,7 +231,7 @@ class TmFighter:
             self.threads.append(thread)
             counter += 1
 
-            if counter > 0 and counter % 30 == 0:
+            if counter > 0 and counter % 10 == 0:
                 self.start_and_join_threads()
         self.start_and_join_threads()
 
@@ -370,12 +374,14 @@ class TmFighter:
                            f'Min Threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
         for item_id in item_ids:
-            url = f'https://market.csgo.com/api/v2/set-price?key={self.tm_api}&item_id={item_id}' \
-                  f'&price={new_price}&cur={self.currency_name}'
-            try:
-                get(url, timeout=60)
-            except:
-                continue
+            self.id_prices_pool.append(
+                {
+                    "item_id": item_id,
+                    "price": new_price
+                }
+            )
+            if len(self.id_prices_pool) == 50:
+                self.mass_set_prices()
 
         if not prices:
             return message(self.login, 'b>',
@@ -384,6 +390,23 @@ class TmFighter:
         message(self.login, 'b>', f'Changed price of {item_name} to {new_price / self.currency_coefficient},'
                                   f' First price: {prices[0] / self.currency_coefficient}, Min threshold: {round(min_threshold / self.currency_coefficient, 2)}')
 
+    def mass_set_prices(self):
+        url = f'https://market.csgo.com/api/v2/mass-set-price?key={self.tm_api}&cur={self.currency_name}'
+        try:
+            response = post(url, timeout=60, json={'items': self.id_prices_pool})
+            message(self.login, 'n', 'Changed 50 prices!')
+        except:
+            message(self.login, 'r', 'Error in changing prices')
+        self.id_prices_pool = []
+
+    def mass_list_items(self, items):
+        url = f'https://market.csgo.com/api/v2/mass-add-to-sale?key={self.tm_api}&cur={self.currency_name}'
+        try:
+            response = post(url, json={'items': items}, timeout=60)
+            message(self.login, 'n>', 'Listed 50 items!')
+        except:
+            message(self.login, 'r', 'Error in listing')
+
     def list_all_items(self):
         items = get_my_items_to_list(self.tm_api)
         if not items:
@@ -391,15 +414,22 @@ class TmFighter:
             return
 
         message(self.login, 'n>', 'Updated inventory, starting list items..')
+        counter, list_items = 0, []
         for i in items:
-            item_id = i['id']
-            url = f'https://market.csgo.com/api/v2/add-to-sale?key={self.tm_api}&id={item_id}&price=1000000000&' \
-                  f'cur={self.currency_name}'
-            try:
-                get(url, timeout=60)
-            except:
+            if i['tradable'] != 1:
                 continue
-            message(self.login, 'n>', f'{i["market_hash_name"]} is listed!')
+
+            list_items.append({
+                "asset": i['id'],
+                "price": 1000000000
+            })
+
+            counter += 1
+            if counter == 50:
+                self.mass_list_items(list_items)
+                counter, list_items = 0, []
+        if list_items:
+            self.mass_list_items(list_items)
 
         message(self.login, 'n', 'Listed All items!')
 
@@ -511,7 +541,7 @@ class ItemsSender:
                         self.get_access_token()
                 except:
                     continue
-            sleep(160)
+            sleep(250)
 
     def get_access_token(self):
         if not self.is_session_alive():
