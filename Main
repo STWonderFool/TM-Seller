@@ -93,12 +93,31 @@ def telegram_notify(chat_id, token, text):
 
 def get_single_item_id(item_name, account_name):
     url = 'https://steamcommunity.com/market/listings/730/'
+    headers = {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'max-age=0',
+        'Connection': 'keep-alive',
+        'Referer': 'https://steamcommunity.com/market/',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36',
+        'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-viewport-height': '445',
+        'sec-ch-viewport-width': '1920',
+    }
+    cookies = {
+        'bMarketOptOut': '1'
+    }
+
     try:
-        cookies = {
-            'bMarketOptOut': '1'
-        }
-        
-        response = get(url + item_name, cookies=cookies, timeout=60).text
+
+        response = get(url + item_name, cookies=cookies, headers=headers, timeout=60).text
         item_id = findall(r'Market_LoadOrderSpread\(\s(\d+)', response)[0]
     except:
         message(account_name, 'r', 'Error getting item ID :(')
@@ -295,7 +314,8 @@ class TmFighter:
 
         headers = {
             'Referer': quote(f'https://steamcommunity.com/market/listings/730/{item_name}'),
-            'User-Agent': self.user_agent
+            'User-Agent': self.user_agent,
+            'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
         }
 
         try:
