@@ -639,6 +639,12 @@ class ItemsSender:
         counter = 0
         for offer in offers:
             counter += 1
+
+            for item in offer['items']:
+                item['appid'] = '730'
+                item['contextid'] = '2'
+                item['assetid'] = str(item['assetid'])
+
             try:
                 response = self.create_single_offer(offer)
             except:
